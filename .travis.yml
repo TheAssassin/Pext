@@ -1,5 +1,6 @@
 language: python
-sudo: true  # need to install dependencies
+sudo: required  # need to install dependencies
+dist: xenial
 
 python:
   - "3.3"  # try to find lowest supported version
