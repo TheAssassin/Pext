@@ -15,4 +15,11 @@ install:
   - pip install tox-travis
 
 script:
-  - tox
+  - /opt/qt*/bin/qt*-env.sh
+  #- tox  # disabled to get packaging done
+  - mkdir -p pext.AppDir/usr
+  - python3 -m venv AppDir/usr
+  - . AppDir/usr/bin/activate
+  - pip3 install PyQt5==5.8
+  - python3 setup.py install
+
