@@ -9,17 +9,17 @@ python:
   - "3.7-dev"
 
 install:
-  - sudo add-apt-repository --yes ppa:beineri/opt-qt58-trusty
-  - sudo apt-get update
-  - sudo apt-get install -y libnotify-bin qt58base qt58declarative
+  #- sudo add-apt-repository --yes ppa:beineri/opt-qt58-trusty
+  #- sudo apt-get update
+  #- sudo apt-get install -y libnotify-bin qt58base qt58declarative
   - pip install tox-travis
 
 script:
   - /opt/qt*/bin/qt*-env.sh
   #- tox  # disabled to get packaging done
   - mkdir -p pext.AppDir/usr
-  - python3 -m venv AppDir/usr
-  - . AppDir/usr/bin/activate
+  - python3 -m venv pext.AppDir/usr
+  - . pext.AppDir/usr/bin/activate
   - python3 -m pip install PyQt5==5.8
   - python3 setup.py install
   - cp pext.desktop pext.AppDir
