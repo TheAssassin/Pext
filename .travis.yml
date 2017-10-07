@@ -20,8 +20,8 @@ script:
   - mkdir -p pext.AppDir/usr
   - python3 -m venv AppDir/usr
   - . AppDir/usr/bin/activate
-  - pip3 install PyQt5==5.8
-  - python3 setup.py install
+  - pip install PyQt5==5.8
+  - python setup.py install
   - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
   - chmod +x appimagetool-x86_64.AppImage
   - ./appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
