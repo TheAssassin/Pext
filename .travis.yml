@@ -22,6 +22,10 @@ script:
   - . AppDir/usr/bin/activate
   - pip install PyQt5==5.8
   - python setup.py install
+  - cp pext.desktop pext.AppDir
+  - cp pext/images/scalable/pext.svg pext.AppDir
+  - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/AppRun-x86_64 -O pext.AppDir/AppRun
+  - chmod +x pext.AppDir/AppRun
   - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
   - chmod +x appimagetool-x86_64.AppImage
   - ./appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
