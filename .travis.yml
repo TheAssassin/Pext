@@ -9,28 +9,21 @@ python:
   - "3.7-dev"
 
 install:
-  #- sudo add-apt-repository --yes ppa:beineri/opt-qt58-trusty
-  #- sudo apt-get update
-  #- sudo apt-get install -y libnotify-bin qt58base qt58declarative
-  - sudo apt-get install -y tree
-  - pip install tox-travis
+  #- pip install tox-travis
 
 script:
-  #- /opt/qt*/bin/qt*-env.sh
   #- tox  # disabled to get packaging done
-  - mkdir -p pext.AppDir/usr
-  - python3 -m venv pext.AppDir/usr
+  - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+  - bash Miniconda3-latest-Linux-x86_64.sh -b -p pext.AppDir/usr -f
   - . pext.AppDir/usr/bin/activate
-  - tree pext.AppDir
-  - python3 -m pip install PyQt5==5.8
-  - python3 setup.py install
+  - conda install -y -c anaconda pyopengl
+  - pip install PyQt5==5.8
+  - python setup.py install
   - cp pext.desktop pext.AppDir
   - cp pext/images/scalable/pext.svg pext.AppDir
-  - tree pext.AppDir
+  - sed -i 's|Exec=.*|Exec=python bin/pext|' pext.AppDir/pext.desktop
   - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/AppRun-x86_64 -O pext.AppDir/AppRun
   - chmod +x pext.AppDir/AppRun
   - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
   - chmod +x appimagetool-x86_64.AppImage
-  - ./appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
-  - curl --upload-file pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
-  - tree pext.AppDir
+  - appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
