@@ -11,9 +11,9 @@ python:
 jobs:
   include:
     - stage: test
+      install: pip install tox-travis
       script: true  # tox  # disabled to get packaging done
     - stage: package
-      python: 3.5
       script:
       - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
       - bash Miniconda3-latest-Linux-x86_64.sh -b -p pext.AppDir/usr -f
@@ -30,9 +30,3 @@ jobs:
       - chmod +x appimagetool-x86_64.AppImage
       - ./appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
       - curl --upload-file pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
-
-    - python:
-
-install:
-  #- pip install tox-travis
-
