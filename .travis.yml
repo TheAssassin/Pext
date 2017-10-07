@@ -1,6 +1,5 @@
 language: python
 sudo: required  # need to install dependencies
-dist: xenial
 
 python:
   - "3.3"  # try to find lowest supported version
@@ -10,9 +9,9 @@ python:
   - "3.7-dev"
 
 install:
-  - sudo add-apt-repository --yes ppa:beineri/opt-qt59-trusty
+  - sudo add-apt-repository --yes ppa:beineri/opt-qt58-trusty
   - sudo apt-get update
-  - sudo apt-get install -y libnotify-bin qt59base qt59declarative
+  - sudo apt-get install -y libnotify-bin qt58base qt58declarative
   - pip install tox-travis
 
 script:
