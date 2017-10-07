@@ -20,8 +20,8 @@ script:
   - mkdir -p pext.AppDir/usr
   - python3 -m venv AppDir/usr
   - . AppDir/usr/bin/activate
-  - pip install PyQt5==5.8
-  - python setup.py install
+  - python3 -m pip install PyQt5==5.8
+  - python3 setup.py install
   - cp pext.desktop pext.AppDir
   - cp pext/images/scalable/pext.svg pext.AppDir
   - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/AppRun-x86_64 -O pext.AppDir/AppRun
@@ -30,4 +30,3 @@ script:
   - chmod +x appimagetool-x86_64.AppImage
   - ./appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
   - curl --upload-file pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
-
