@@ -1,4 +1,5 @@
 language: python
+sudo: true  # need to install dependencies
 
 python:
   - "3.3"  # try to find lowest supported version
