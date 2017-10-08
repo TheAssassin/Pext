@@ -28,6 +28,7 @@ jobs:
       - pip install -U pip
       - pip download pygit2; tar xf pygit2*.tar.gz; pushd pygit2*/
       - python setup.py build_ext --inplace --include-dirs="${curdir}/pext.AppDir/usr/include" --library-dirs="${curdir}/pext.AppDir/usr/lib"
+      - python setup.py install
       - popd
       # install Pext
       - python setup.py install
