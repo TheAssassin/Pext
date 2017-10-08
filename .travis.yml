@@ -31,6 +31,9 @@ jobs:
       # install AppRun into AppDir
       - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/AppRun-x86_64 -O pext.AppDir/AppRun
       - chmod +x pext.AppDir/AppRun
+      # clean up unused garbage
+      - find pext.AppDir -type f -iname '*.tar.bz2' -delete
+      - find pext.AppDir -type f -iname '*.a' -delete
       # build AppImage
       - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
       - chmod +x appimagetool-x86_64.AppImage
@@ -38,6 +41,7 @@ jobs:
       - ./appimagetool-x86_64.AppImage --appimage-extract
       - squashfs-root/AppRun pext.AppDir pext-x86_64.AppImage
       # upload AppImage to transfer.sh (temporary, shall be replaced by uploadtool eventually)
+      - du -sh -BM pext-x86_64.AppImage
       - curl --upload-file pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
 
 stages:
