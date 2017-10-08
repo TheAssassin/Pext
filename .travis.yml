@@ -1,17 +1,19 @@
 language: python
 #sudo: required  # need to install dependencies
 
+python:
+  - "3.3"  # try to find lowest supported version
+  - "3.4"
+  - "3.5"
+  - "3.6"
+  - "3.7-dev"
+
+install: pip install tox-travis
+script: tox  # disabled to get packaging done
+
 jobs:
   include:
     - stage: test
-      install: pip install tox-travis
-      script: tox  # disabled to get packaging done
-      python:
-        - "3.3"  # try to find lowest supported version
-        - "3.4"
-        - "3.5"
-        - "3.6"
-        - "3.7-dev"
     - stage: package
       install:
       script:
