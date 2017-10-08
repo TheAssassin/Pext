@@ -21,7 +21,7 @@ jobs:
       - git clone https://github.com/libgit2/libgit2
       - pushd libgit2; mkdir build/; cd build
       - cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-      - make install DESTDIR=../../pext.AppDir
+      - make install DESTDIR=../../pext.AppDir -j$(nproc)
       - popd
       - pip install --global-option="-Ipext.AppDir/usr/include" --global-option="-Lpext.AppDir/usr/lib" PyQt5==5.8 PyOpenGL PyOpenGL_accelerate pygit2
       # install Pext
