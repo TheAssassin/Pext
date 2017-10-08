@@ -24,7 +24,8 @@ jobs:
       - make install DESTDIR=../../pext.AppDir -j$(nproc)
       - popd
       - pip install PyQt5==5.8 PyOpenGL PyOpenGL_accelerate
-      - pip install --global-option=build_ext --global-option="-Ipext.AppDir/usr/include" --global-option="-Lpext.AppDir/usr/lib" pygit2
+      - curdir=$(readlink -f .) export CFLAGS="-I${curdir}/pext.AppDir/usr/include -L${curdir}/pext.AppDir/usr/lib"
+      - pip install pygit2
       # install Pext
       - python setup.py install
       # set up Desktop file and icon
