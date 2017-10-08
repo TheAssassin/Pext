@@ -19,7 +19,7 @@ jobs:
       - . pext.AppDir/usr/bin/activate
       - # install dependencies
       - conda install -y -c anaconda pyopengl
-      - conda install -c conda-forge pygit2
+      - conda install -y -c conda-forge pygit2
       - pip install PyQt5==5.8
       - # install Pext
       - python setup.py install
