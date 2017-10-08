@@ -12,7 +12,7 @@ jobs:
     - stage: package
       install:
       script:
-      # install Miniconda, a mostly static build of Python, into AppDir
+      # install Miniconda, a self contained Python distribution, into AppDir
       - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
       - bash Miniconda3-latest-Linux-x86_64.sh -b -p pext.AppDir/usr -f
       # activate Miniconda environment
@@ -21,10 +21,9 @@ jobs:
       - git clone https://github.com/libgit2/libgit2
       - pushd libgit2; mkdir build/; cd build
       - cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-      - make install
       - make install DESTDIR=../../pext.AppDir
       - popd
-      - pip install PyQt5==5.8 PyOpenGL PyOpenGL_accelerate pygit2
+      - pip install --global-option="-Ipext.AppDir/usr/include" --global-option="-Lpext.AppDir/usr/lib" PyQt5==5.8 PyOpenGL PyOpenGL_accelerate pygit2
       # install Pext
       - python setup.py install
       # set up Desktop file and icon
