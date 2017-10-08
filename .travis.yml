@@ -9,12 +9,13 @@ python:
   - "3.7-dev"
 
 install:
+script:
 
 jobs:
   include:
     - stage: test
       install: pip install tox-travis
-      script: true  # tox  # disabled to get packaging done
+      script: tox  # disabled to get packaging done
     - stage: package
       install:
       script:
