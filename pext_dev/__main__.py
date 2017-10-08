@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Pext Development Tools
+"""Pext Development Tools.
 
 This file aids in module development.
 """
@@ -32,7 +32,8 @@ from shutil import copy, copytree, rmtree
 try:
     from typing import List
 except ImportError:
-    from backports.typing import List
+    from backports.typing import List  # type: ignore
+
 
 class AppFile():
     """Get access to application-specific files."""
@@ -41,6 +42,7 @@ class AppFile():
     def get_path(name: str) -> str:
         """Return the absolute path by file or directory name."""
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+
 
 class Module():
     """Module code."""
@@ -140,6 +142,7 @@ class Module():
         # Clean up
         rmtree(tempdir)
 
+
 class Theme():
     """Theme code."""
 
@@ -195,10 +198,11 @@ class Theme():
 
 
 def run(argv: List[str]) -> None:
+    """Figure out the class and command to run from the CLI input and run it."""
     if (argv[0] == "module"):
         classInstance = Module()
     elif (argv[0] == "theme"):
-        classInstance = Theme()
+        classInstance = Theme()  # type: ignore
     else:
         usage()
         sys.exit(1)
@@ -246,10 +250,6 @@ theme run
     Run the theme in the current directory a new Pext instance. Added options are passed to Pext as-is.''')
 
 
-def main() -> None:
+if __name__ == "__main__":
     # Run chosen functionality
     run(sys.argv[1:])
-
-
-if __name__ == "__main__":
-    main()

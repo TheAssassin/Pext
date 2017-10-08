@@ -21,7 +21,7 @@ This file contains the definition of the Pext module base, which all
 Pext modules must implement. This is basically the API of Pext.
 """
 
-from abc import ABC, abstractmethod  # type: ignore
+from abc import ABC  # type: ignore
 from queue import Queue
 from typing import Any, Dict, List, Union
 
@@ -31,7 +31,8 @@ from pext_helpers import SelectionType
 class ModuleBase(ABC):
     """Introduced in API version 0.1.0.
 
-    The base all Pext modules must implement."""
+    The base all Pext modules must implement.
+    """
 
     def init(self, settings: Dict, q: Queue) -> None:
         """Introduced in API version 0.1.0.

@@ -24,7 +24,6 @@ Pext.
 """
 
 import atexit
-import collections
 import configparser
 import getopt
 import json
@@ -42,30 +41,29 @@ from enum import IntEnum
 from importlib import reload  # type: ignore
 from inspect import getmembers, isfunction, ismethod, signature
 from shutil import rmtree
-from subprocess import check_call, check_output, CalledProcessError, Popen, STDOUT
+from subprocess import check_call, CalledProcessError, Popen
 try:
     from typing import Dict, List, Optional, Tuple
 except ImportError:
-    from backports.typing import Dict, List, Optional, Tuple
-from urllib.error import URLError
-from urllib.request import urlopen
+    from backports.typing import Dict, List, Optional, Tuple  # type: ignore
 from queue import Queue, Empty
 
-# FIXME: Workaround for https://bugs.launchpad.net/ubuntu/+source/python-qt4/+bug/941826
-warn_no_openGL_linux = False
-if platform.system() == "Linux":
-    try:
-        from OpenGL import GL
-    except ImportError:
-        warn_no_openGL_linux = True
-
-from PyQt5.QtCore import QStringListModel, QTimer, QLocale, QTranslator
+import pygit2
+from PyQt5.QtCore import QStringListModel, QLocale, QTranslator
 from PyQt5.QtWidgets import (QAction, QApplication, QDialog, QDialogButtonBox,
                              QInputDialog, QLabel, QLineEdit, QMainWindow,
                              QMenu, QMessageBox, QTextEdit, QVBoxLayout,
                              QStyleFactory, QSystemTrayIcon)
 from PyQt5.Qt import QClipboard, QIcon, QObject, QQmlApplicationEngine, QQmlComponent, QQmlContext, QQmlProperty, QUrl
 from PyQt5.QtGui import QPalette, QColor
+
+# FIXME: Workaround for https://bugs.launchpad.net/ubuntu/+source/python-qt4/+bug/941826
+warn_no_openGL_linux = False
+if platform.system() == "Linux":
+    try:
+        from OpenGL import GL  # NOQA
+    except ImportError:
+        warn_no_openGL_linux = True
 
 
 class AppFile():
@@ -83,7 +81,10 @@ sys.path.append(os.path.join(AppFile.get_path(), 'helpers'))
 from pext_base import ModuleBase  # noqa: E402
 from pext_helpers import Action, SelectionType  # noqa: E402
 
+
 class MinimizeMode(IntEnum):
+    """A list of possible ways Pext can react on minimization."""
+
     Normal = 0
     Tray = 1
     NormalManualOnly = 2
@@ -91,13 +92,14 @@ class MinimizeMode(IntEnum):
 
 
 class SortMode(IntEnum):
+    """A list of possible ways Pext can sort module entries."""
+
     Module = 0
     Ascending = 1
     Descending = 2
 
 
 class ConfigRetriever():
-
     """Retrieve configuration entries."""
 
     def __init__(self) -> None:
@@ -110,7 +112,7 @@ class ConfigRetriever():
 
         self.config = {'config_path': os.path.join(config_home, 'pext/')}
 
-    def get_setting(self, variable: str):
+    def get_setting(self, variable: str) -> str:
         """Get a specific configuration setting."""
         return self.config[variable]
 
@@ -126,38 +128,6 @@ class RunConseq():
             else:
                 function['name'](**function['kwargs'])
 
-
-class GitWrapper():
-    """A simple helper to make sure the git environment is always set in a safe way."""
-
-    @staticmethod
-    def check_call(command: List, directory: str) -> str:
-        return check_call(
-            ['git'] + command,
-            cwd=directory,
-            env=GitWrapper.get_env(directory))
-
-
-    @staticmethod
-    def check_output(command: List, directory: str) -> str:
-        return check_output(
-            ['git'] + command,
-            cwd=directory,
-            env=GitWrapper.get_env(directory),
-            universal_newlines=True).strip()
-
-    @staticmethod
-    def get_env(directory: Optional[str]) -> Dict:
-        git_env = os.environ.copy()
-        git_env['GIT_ASKPASS'] = 'true'
-
-        pext_root = os.path.dirname(os.path.dirname(AppFile.get_path()))
-        if not os.path.commonpath([os.path.abspath(pext_root)]) == os.path.commonpath([os.path.abspath(pext_root), os.path.abspath(directory)]):
-            git_env['GIT_CEILING_DIRECTORIES'] = directory
-        else:
-            git_env['GIT_CEILING_DIRECTORIES'] = pext_root
-
-        return git_env
 
 class InputDialog(QDialog):
     """A simple dialog requesting user input."""
@@ -228,6 +198,7 @@ class Logger():
         else:
             print(message)
 
+    @staticmethod
     def _log_error(message: str, logger=None) -> None:
         """If a logger is provided, log to the logger. Otherwise, print."""
         if logger:
@@ -658,11 +629,8 @@ class ObjectManager():
             name = ThemeManager.remove_prefix(name)
 
             try:
-                source = GitWrapper.check_output(
-                    ['config', '--get', 'remote.origin.url'],
-                    os.path.join(core_directory, directory))
-
-            except (CalledProcessError, FileNotFoundError):
+                source = UpdateManager.get_remote_url(os.path.join(core_directory, directory))
+            except Exception as e:
                 source = None
 
             try:
@@ -692,8 +660,10 @@ class ModuleManager():
     def __init__(self, config_retriever: ConfigRetriever) -> None:
         """Initialize the module manager."""
         self.config_retriever = config_retriever
-        self.module_dir = os.path.join(self.config_retriever.get_setting('config_path'), 'modules')
-        self.module_dependencies_dir = os.path.join(self.config_retriever.get_setting('config_path'), 'module_dependencies')
+        self.module_dir = os.path.join(self.config_retriever.get_setting('config_path'),
+                                       'modules')
+        self.module_dependencies_dir = os.path.join(self.config_retriever.get_setting('config_path'),
+                                                    'module_dependencies')
         self.logger = None  # type: Optional[Logger]
 
     @staticmethod
@@ -762,7 +732,7 @@ class ModuleManager():
 
         return returncode
 
-    def bind_logger(self, logger: Logger) -> str:
+    def bind_logger(self, logger: Logger) -> None:
         """Connect a logger to the module manager.
 
         If a logger is connected, the module manager will log all
@@ -782,7 +752,9 @@ class ModuleManager():
         module_name = ModuleManager.remove_prefix(module['name'])
 
         # Append module dependencies path if not yet appended
-        module_dependencies_path = os.path.join(self.config_retriever.get_setting('config_path'), 'module_dependencies', module_dir)
+        module_dependencies_path = os.path.join(self.config_retriever.get_setting('config_path'),
+                                                'module_dependencies',
+                                                module_dir)
         if module_dependencies_path not in sys.path:
             sys.path.append(module_dependencies_path)
 
@@ -841,7 +813,7 @@ class ModuleManager():
         required_param_lengths = {}
 
         for name, value in getmembers(ModuleBase, isfunction):
-            required_param_lengths[name] = len(signature(value).parameters) - 1 # Python is inconsistent with self
+            required_param_lengths[name] = len(signature(value).parameters) - 1  # Python is inconsistent with self
 
         for name, value in getmembers(module_code, ismethod):
             try:
@@ -853,7 +825,8 @@ class ModuleManager():
 
             if param_length != required_param_length:
                 if name == 'process_response' and param_length == 1:
-                    print("WARN: Module {} uses old process_response signature and will not be able to receive an identifier if requested".format(module_name))
+                    print("WARN: Module {} uses old process_response signature and will not be able to receive an " +
+                          "identifier if requested".format(module_name))
                 else:
                     Logger._log_error(
                         "Failed to load module {} from {}: {} function has {} parameters (excluding self), expected {}"
@@ -905,7 +878,8 @@ class ModuleManager():
         try:
             window.tab_bindings[tab_id]['module'].stop()
         except Exception as e:
-            print('WARN: Module {} caused exception {} on unload'.format(window.tab_bindings[tab_id]['module_name'], e))
+            print('WARN: Module {} caused exception {} on unload'
+                  .format(window.tab_bindings[tab_id]['module_name'], e))
             traceback.print_exc()
 
         if QQmlProperty.read(window.tabs, "currentIndex") == tab_id:
@@ -977,15 +951,10 @@ class ModuleManager():
             Logger._log('⇩ {} ({})'.format(module_name, url), self.logger)
 
         try:
-            return_code = Popen(['git', 'clone', url, dir_name],
-                                cwd=self.module_dir,
-                                env=GitWrapper.get_env(self.module_dir)).wait()
+            pygit2.clone_repository(url, os.path.join(self.module_dir, dir_name))
         except Exception as e:
             Logger._log_error('⇩ {}: {}'.format(module_name, e), self.logger)
 
-            return False
-
-        if return_code != 0:
             if verbose:
                 Logger._log_error('⇩ {}'.format(module_name), self.logger)
 
@@ -1058,15 +1027,13 @@ class ModuleManager():
         if not UpdateManager.has_update(os.path.join(self.module_dir, dir_name)):
             if verbose:
                 Logger._log('⏩{}'.format(module_name), self.logger)
-            return
+            return False
 
         if verbose:
             Logger._log('⇩ {}'.format(module_name), self.logger)
 
         try:
-            GitWrapper.check_call(
-                ['pull'],
-                os.path.join(self.module_dir, dir_name))
+            UpdateManager.update(os.path.join(self.module_dir, dir_name))
         except Exception as e:
             if verbose:
                 Logger._log_error(
@@ -1102,32 +1069,50 @@ class UpdateManager():
     """Manages scheduling and checking automatic updates."""
 
     def __init__(self) -> None:
-        try:
-            self.version = GitWrapper.check_output(
-                ['describe', '--always', '--dirty'],
-                AppFile.get_path())
-        except (CalledProcessError, FileNotFoundError):
+        """Initialize the UpdateManager and store the version info of Pext."""
+        self.version = UpdateManager.get_version(AppFile.get_path())
+        if not self.version:
             with open(os.path.join(AppFile.get_path(), 'VERSION')) as version_file:
                 self.version = version_file.read().strip()
 
+    @staticmethod
+    def _path_to_repo(directory: str) -> pygit2.Repository:
+        repository_path = pygit2.discover_repository(directory, False, UpdateManager.get_git_ceiling_dirs(directory))
+        return pygit2.Repository(repository_path)
+
     def get_core_version(self) -> str:
+        """Return the version info of Pext itself."""
         return self.version
 
     @staticmethod
+    def get_git_ceiling_dirs(directory: Optional[str]) -> str:
+        """Return the ceiling directories that pygit2 should stay inside of."""
+        pext_root = os.path.dirname(os.path.dirname(AppFile.get_path()))
+        if directory:
+            return "{}:{}".format(pext_root, directory)
+        else:
+            return pext_root
+
+    @staticmethod
+    def get_remote_url(directory, remote="origin") -> str:
+        """Get the url of the given remote for the specified git-managed directory."""
+        repo = UpdateManager._path_to_repo(directory)
+        return repo.remotes['origin'].url
+
+    @staticmethod
     def update_core(verbose=False, logger=None) -> bool:
+        """Attempt to update Pext itself from Git."""
         # Check if it's not already up-to-date
         if not UpdateManager.has_update(AppFile.get_path()):
             if verbose:
-                Logger._log('⏩Pext',logger)
+                Logger._log('⏩Pex', logger)
             return False
 
         if verbose:
             Logger._log('⇩ Pext', logger)
 
         try:
-            GitWrapper.check_call(
-                ['pull'],
-                AppFile.get_path())
+            UpdateManager.update(AppFile.get_path())
         except Exception as e:
             if verbose:
                 Logger._log_error(
@@ -1140,50 +1125,81 @@ class UpdateManager():
 
     @staticmethod
     def has_update(directory, branch="master") -> bool:
-        """Check if an update is available for the selected directory."""
+        """Check if an update is available for the git-managed directory."""
         try:
-            GitWrapper.check_call(
-                ['fetch'],
-                directory)
-        except (CalledProcessError, FileNotFoundError):
+            repo = UpdateManager._path_to_repo(directory)
+            for remote in repo.remotes:
+                if remote.name == 'origin':
+                    remote.fetch()
+                    remote_branch_id = repo.lookup_reference('refs/remotes/origin/{}'.format(branch)).target
+                    merge_result, _ = repo.merge_analysis(remote_branch_id)
+                    if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
+                        return False
+                    else:
+                        return True
+
+            print("Could not find origin remote")
+            return False
+        except Exception as e:
+            print("Could not determine if updates are available for {}: {}".format(directory, e))
             return False
 
-        try:
-            upstream_version = GitWrapper.check_output(
-                ['rev-parse', 'origin/{}'.format(branch)],
-                directory)
-        except (CalledProcessError, FileNotFoundError):
-            return False
+    @staticmethod
+    def update(directory, branch="master") -> None:
+        """If an update is available, attempt to update the git-managed directory."""
+        if UpdateManager.has_update(directory):
+            repo = UpdateManager._path_to_repo(directory)
+            for remote in repo.remotes:
+                if remote.name == 'origin':
+                    remote_branch_id = repo.lookup_reference('refs/remotes/origin/{}'.format(branch)).target
+                    merge_result, _ = repo.merge_analysis(remote_branch_id)
+                    if merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
+                        repo.checkout_tree(repo.get(remote_branch_id))
+                        branch_ref = repo.lookup_reference('refs/heads/{}'.format(branch))
+                        branch_ref.set_target(remote_branch_id)
+                        repo.head.set_target(remote_branch_id)
+                    elif merge_result & pygit2.GIT_MERGE_ANALYSIS_NORMAL:
+                        repo.merge(remote_branch_id)
+                        if repo.index.conflicts:
+                            raise Exception("Conflicts: {}".format(repo.index.conflicts))
 
-        try:
-            own_version = GitWrapper.check_output(
-                ['rev-parse', branch],
-                directory)
-        except (CalledProcessError, FileNotFoundError):
-            return False
+                        user = repo.default_signature
+                        tree = repo.index.write_tree()
+                        repo.create_commit('HEAD',
+                                           user,
+                                           user,
+                                           'Merge!',
+                                           tree,
+                                           [repo.head.target, remote_branch_id])
+                        repo.state_cleanup()
+                    else:
+                        raise Exception("Merge analysis result unknown: {}".format(merge_result))
 
-        return upstream_version != own_version
+                    return
+
+            raise Exception("Could not find origin remote")
 
     @staticmethod
     def get_version(directory) -> Optional[str]:
+        """Get the version of the git-managed directory."""
         try:
-            return GitWrapper.check_output(
-                ['describe', '--always', '--dirty'],
-                directory)
-        except (CalledProcessError, FileNotFoundError):
+            repo = UpdateManager._path_to_repo(directory)
+            return repo.describe(show_commit_oid_as_fallback=True, dirty_suffix='-dirty')
+        except Exception as e:
+            print("Could not describe {}: {}".format(directory, e))
             return None
 
     @staticmethod
     def get_last_updated(directory) -> Optional[datetime]:
-        """Return the time of the latest update."""
+        """Return the time of the latest update of the git-managed directory."""
         try:
-            return datetime.fromtimestamp(int(
-                GitWrapper.check_output(
-                    ['show', '-s', '--format=%ct'],
-                    directory)))
-
-        except (CalledProcessError, FileNotFoundError):
+            repo = UpdateManager._path_to_repo(directory)
+            commit = repo.revparse_single('HEAD')
+            return datetime.fromtimestamp(commit.commit_time)
+        except Exception as e:
+            print("Could not get last updated time for {}: {}".format(directory, e))
             return None
+
 
 class ModuleThreadInitializer(threading.Thread):
     """Initialize a thread for the module."""
@@ -1227,11 +1243,11 @@ class ViewModel():
         self.selection = []  # type: List[Dict[SelectionType, str]]
         self.last_search = ""
         self.context_menu_model_list = QStringListModel()
-        self.extra_info_entries = {}
-        self.extra_info_commands = {}
-        self.context_menu_entries = {}
-        self.context_menu_commands = {}
-        self.context_menu_base = []
+        self.extra_info_entries = {}  # type: Dict[str, str]
+        self.extra_info_commands = {}  # type: Dict[str, str]
+        self.context_menu_entries = {}  # type: Dict[str, List[str]]
+        self.context_menu_commands = {}  # type: Dict[str, List[str]]
+        self.context_menu_base = []  # type: List[str]
         self.context_menu_base_open = False
         self.extra_info_last_entry = ""
         self.extra_info_last_entry_type = None
@@ -1285,7 +1301,9 @@ class ViewModel():
                 return
             self.queue.task_done()
 
-    def bind_context(self, queue: Queue, context: QQmlContext, window: 'Window', search_input_model: QObject, header_text: QObject, result_list_model: QObject, context_menu_model: QObject, base_info_panel: QObject, context_info_panel: QObject) -> None:
+    def bind_context(self, queue: Queue, context: QQmlContext, window: 'Window', search_input_model: QObject,
+                     header_text: QObject, result_list_model: QObject, context_menu_model: QObject,
+                     base_info_panel: QObject, context_info_panel: QObject) -> None:
         """Bind the QML context so we can communicate with the QML front-end."""
         self.queue = queue
         self.context = context
@@ -1312,7 +1330,6 @@ class ViewModel():
         the search bar. If we're currently in the entry list and the search bar
         is empty, we tell the window to hide/close itself.
         """
-
         if self.context.contextProperty("contextMenuEnabled"):
             self.context_menu_base_open = False
             self.context.setContextProperty(
@@ -1374,7 +1391,8 @@ class ViewModel():
 
         # Get current match
         try:
-            current_match = self.result_list_model_list.stringList()[QQmlProperty.read(self.result_list_model, "currentIndex")]
+            current_match = self.result_list_model_list.stringList()[QQmlProperty.read(self.result_list_model,
+                                                                                       "currentIndex")]
         except IndexError:
             current_match = None
 
@@ -1415,7 +1433,8 @@ class ViewModel():
         search_strings = search_string.split(" ")
 
         # If longer and no new entries, only filter existing list
-        if len(self.last_search) > 0 and len(search_string) > len(self.last_search) and not self.result_list_model_command_mode:
+        if (len(self.last_search) > 0 and len(search_string) > len(self.last_search)
+                and not self.result_list_model_command_mode):
 
             filter_entry_list = self.sorted_filtered_entry_list
             filter_command_list = self.sorted_filtered_command_list
@@ -1481,7 +1500,7 @@ class ViewModel():
 
         self.update_context_info_panel()
 
-    def _get_entry(self, include_context=False, shorten_command=False) -> {}:
+    def _get_entry(self, include_context=False, shorten_command=False) -> Dict:
         """Get info on the entry that's currently focused."""
         if include_context and self.context.contextProperty("contextMenuEnabled"):
             current_index = QQmlProperty.read(self.context_menu_model, "currentIndex")
@@ -1537,7 +1556,7 @@ class ViewModel():
         self.context_menu_entries = {}
         self.context_menu_commands = {}
 
-        self.selection.append(self._get_entry(include_context = True))
+        self.selection.append(self._get_entry(include_context=True))
 
         self.context.setContextProperty(
             "contextMenuEnabled", False)
@@ -1571,15 +1590,17 @@ class ViewModel():
 
         try:
             if current_entry['type'] == SelectionType.entry:
-                self.context_menu_model_list.setStringList(str(entry) for entry in self.context_menu_entries[current_entry['value']])
+                self.context_menu_model_list.setStringList(
+                    str(entry) for entry in self.context_menu_entries[current_entry['value']])
             else:
-                self.context_menu_model_list.setStringList(str(entry) for entry in self.context_menu_commands[current_entry['value']])
+                self.context_menu_model_list.setStringList(
+                    str(entry) for entry in self.context_menu_commands[current_entry['value']])
 
             self.context_menu_base_open = False
             self.context.setContextProperty(
                 "contextMenuEnabled", True)
         except KeyError:
-            pass # No menu available, do nothing
+            pass  # No menu available, do nothing
 
     def hide_context(self) -> None:
         """Hide the context menu."""
@@ -1588,6 +1609,7 @@ class ViewModel():
             "contextMenuEnabled", False)
 
     def update_context_info_panel(self, request_update=True) -> None:
+        """Update the context info panel with the info panel data of the currently selected entry."""
         if len(self.filtered_entry_list + self.filtered_command_list) == 0:
             QQmlProperty.write(self.context_info_panel, "text", "")
             self.extra_info_last_entry_type = None
@@ -1596,7 +1618,8 @@ class ViewModel():
         current_entry = self._get_entry(shorten_command=True)
 
         # Prevent updating the list unnecessarily often
-        if current_entry['value'] == self.extra_info_last_entry and current_entry['type'] == self.extra_info_last_entry_type:
+        if (current_entry['value'] == self.extra_info_last_entry
+                and current_entry['type'] == self.extra_info_last_entry_type):
             return
 
         self.extra_info_last_entry = current_entry['value']
@@ -1618,6 +1641,7 @@ class ViewModel():
             QQmlProperty.write(self.context_info_panel, "text", "")
 
     def update_base_info_panel(self, base_info: str) -> None:
+        """Update the base info panel based on the current module state."""
         QQmlProperty.write(self.base_info_panel, "text", str(base_info))
 
     def set_header(self, content) -> None:
@@ -1803,16 +1827,32 @@ class Window(QMainWindow):
         menu_homepage_shortcut.triggered.connect(self._show_homepage)
 
         # Set entry states
-        QQmlProperty.write(menu_sort_module_shortcut, "checked", int(self.settings['sort_mode']) == SortMode.Module)
-        QQmlProperty.write(menu_sort_ascending_shortcut, "checked", int(self.settings['sort_mode']) == SortMode.Ascending)
-        QQmlProperty.write(menu_sort_descending_shortcut, "checked", int(self.settings['sort_mode']) == SortMode.Descending)
+        QQmlProperty.write(menu_sort_module_shortcut,
+                           "checked",
+                           int(self.settings['sort_mode']) == SortMode.Module)
+        QQmlProperty.write(menu_sort_ascending_shortcut,
+                           "checked",
+                           int(self.settings['sort_mode']) == SortMode.Ascending)
+        QQmlProperty.write(menu_sort_descending_shortcut,
+                           "checked",
+                           int(self.settings['sort_mode']) == SortMode.Descending)
 
-        QQmlProperty.write(menu_minimize_normally_shortcut, "checked", int(self.settings['minimize_mode']) == MinimizeMode.Normal)
-        QQmlProperty.write(menu_minimize_to_tray_shortcut, "checked", int(self.settings['minimize_mode']) == MinimizeMode.Tray)
-        QQmlProperty.write(menu_minimize_normally_manually_shortcut, "checked", int(self.settings['minimize_mode']) == MinimizeMode.NormalManualOnly)
-        QQmlProperty.write(menu_minimize_to_tray_manually_shortcut, "checked", int(self.settings['minimize_mode']) == MinimizeMode.TrayManualOnly)
+        QQmlProperty.write(menu_minimize_normally_shortcut,
+                           "checked",
+                           int(self.settings['minimize_mode']) == MinimizeMode.Normal)
+        QQmlProperty.write(menu_minimize_to_tray_shortcut,
+                           "checked",
+                           int(self.settings['minimize_mode']) == MinimizeMode.Tray)
+        QQmlProperty.write(menu_minimize_normally_manually_shortcut,
+                           "checked",
+                           int(self.settings['minimize_mode']) == MinimizeMode.NormalManualOnly)
+        QQmlProperty.write(menu_minimize_to_tray_manually_shortcut,
+                           "checked",
+                           int(self.settings['minimize_mode']) == MinimizeMode.TrayManualOnly)
 
-        QQmlProperty.write(menu_show_tray_icon_shortcut, "checked", self.settings['tray'])
+        QQmlProperty.write(menu_show_tray_icon_shortcut,
+                           "checked",
+                           self.settings['tray'])
 
         # Get reference to tabs list
         self.tabs = self.window.findChild(QObject, "tabs")
@@ -1879,7 +1919,7 @@ class Window(QMainWindow):
         element['init'] = True
 
     def _process_window_state(self, event) -> None:
-        if event & 1: ## FIXME: Use the WindowMinimized enum instead
+        if event & 1:  # FIXME: Use the WindowMinimized enum instead
             if self.settings['minimize_mode'] in [MinimizeMode.Tray, MinimizeMode.TrayManualOnly]:
                 self.window.hide()
 
@@ -2079,7 +2119,7 @@ class Window(QMainWindow):
     def _menu_toggle_tray_icon(self, enabled: bool) -> None:
         self.settings['tray'] = enabled
         try:
-            self.tray.show() if enabled else self.tray.hide()
+            self.tray.show() if enabled else self.tray.hide()  # type: ignore
         except AttributeError:
             pass
 
@@ -2154,9 +2194,11 @@ class Window(QMainWindow):
 
     def close(self, manual=False) -> None:
         """Close the window."""
-        if self.settings['minimize_mode'] == MinimizeMode.Normal or (manual and self.settings['minimize_mode'] == MinimizeMode.NormalManualOnly):
+        if (self.settings['minimize_mode'] == MinimizeMode.Normal
+                or (manual and self.settings['minimize_mode'] == MinimizeMode.NormalManualOnly)):
             self.window.showMinimized()
-        elif self.settings['minimize_mode'] == MinimizeMode.Tray or (manual and self.settings['minimize_mode'] == MinimizeMode.TrayManualOnly):
+        elif (self.settings['minimize_mode'] == MinimizeMode.Tray
+                or (manual and self.settings['minimize_mode'] == MinimizeMode.TrayManualOnly)):
             self.window.hide()
 
         need_search = False
@@ -2227,7 +2269,9 @@ class ThemeManager():
         self.logger = None  # type: Optional[Logger]
 
         # Create an empty system theme
-        system_theme_path = os.path.join(config_retriever.get_setting('config_path'), 'themes', ThemeManager.add_prefix(ThemeManager.get_system_theme_name()))
+        system_theme_path = os.path.join(config_retriever.get_setting('config_path'),
+                                         'themes',
+                                         ThemeManager.add_prefix(ThemeManager.get_system_theme_name()))
 
         open(os.path.join(system_theme_path, 'theme.conf'), 'w').close()
         with open(os.path.join(system_theme_path, 'metadata.json'), 'w') as system_theme_metadata:
@@ -2254,9 +2298,10 @@ class ThemeManager():
 
     @staticmethod
     def get_system_theme_name() -> str:
+        """Return the name of the system theme, which is used to refer to no theme (OS theming)."""
         return "system"
 
-    def bind_logger(self, logger: Logger) -> str:
+    def bind_logger(self, logger: Logger) -> None:
         """Connect a logger to the module manager.
 
         If a logger is connected, the module manager will log all
@@ -2265,7 +2310,7 @@ class ThemeManager():
         self.logger = logger
 
     def _get_palette_mappings(self) -> Dict[str, int]:
-        mapping = {'colour_roles': {}, 'colour_groups': {}}
+        mapping = {'colour_roles': {}, 'colour_groups': {}}  # type: Dict[str, Dict[str, str]]
         for key in dir(QPalette):
             value = getattr(QPalette, key)
             if isinstance(value, QPalette.ColorRole):
@@ -2295,7 +2340,7 @@ class ThemeManager():
         palette_mappings = self._get_palette_mappings()
 
         config = configparser.ConfigParser()
-        config.optionxform = lambda option: option  # No lowercase
+        config.optionxform = lambda option: option  # type: ignore  # No lowercase
         config.read(os.path.join(self.theme_dir, theme_name, 'theme.conf'))
 
         for colour_group in config.sections():
@@ -2303,7 +2348,9 @@ class ThemeManager():
                 colour_code_list = [int(x) for x in config[colour_group][colour_role].split(",")]
 
                 try:
-                    palette.setColor(palette_mappings['colour_groups'][colour_group], palette_mappings['colour_roles'][colour_role], QColor(*colour_code_list))
+                    palette.setColor(palette_mappings['colour_groups'][colour_group],
+                                     palette_mappings['colour_roles'][colour_role],
+                                     QColor(*colour_code_list))
                 except KeyError as e:
                     print("Theme contained an unknown key, {}, skipping.".format(e))
 
@@ -2330,15 +2377,10 @@ class ThemeManager():
             Logger._log('⇩ {} ({})'.format(theme_name, url), self.logger)
 
         try:
-            return_code = Popen(['git', 'clone', url, dir_name],
-                                cwd=self.theme_dir,
-                                env=GitWrapper.get_env(self.theme_dir)).wait()
+            pygit2.clone_repository(url, os.path.join(self.theme_dir, dir_name))
         except Exception as e:
             Logger._log_error('⇩ {}: {}'.format(theme_name, e), self.logger)
 
-            return False
-
-        if return_code != 0:
             if verbose:
                 Logger._log_error('⇩ {}'.format(theme_name), self.logger)
 
@@ -2362,7 +2404,7 @@ class ThemeManager():
         if theme_name == ThemeManager.get_system_theme_name():
             if verbose:
                 Logger._log('⏩{}'.format(theme_name), self.logger)
-            return
+            return False
 
         if verbose:
             Logger._log('♻ {}'.format(theme_name), self.logger)
@@ -2388,18 +2430,17 @@ class ThemeManager():
         theme_name = ThemeManager.remove_prefix(theme_name)
 
         # Check if it's not already up-to-date or not the system theme
-        if not UpdateManager.has_update(os.path.join(self.theme_dir, dir_name)) or theme_name == ThemeManager.get_system_theme_name():
+        if (not UpdateManager.has_update(os.path.join(self.theme_dir, dir_name))
+                or theme_name == ThemeManager.get_system_theme_name()):
             if verbose:
                 Logger._log('⏩{}'.format(theme_name), self.logger)
-            return
+            return False
 
         if verbose:
             Logger._log('⇩ {}'.format(theme_name), self.logger)
 
         try:
-            GitWrapper.check_call(
-                ['pull'],
-                os.path.join(self.theme_dir, dir_name))
+            UpdateManager.update(os.path.join(self.theme_dir, dir_name))
         except Exception as e:
             if verbose:
                 Logger._log_error(
@@ -2418,7 +2459,7 @@ class ThemeManager():
         for theme in self.list_themes().keys():
             if theme == ThemeManager.get_system_theme_name():
                 continue
-                
+
             self.update_theme(theme, verbose=verbose)
 
 
@@ -2559,12 +2600,12 @@ def _load_settings(argv: List[str], config_retriever: ConfigRetriever) -> Dict:
 
     # Create directory for profile if not existant
     try:
-        ProfileManager(config_retriever).create_profile(settings['profile'])
+        ProfileManager(config_retriever).create_profile(str(settings['profile']))
     except OSError:
         pass
 
     # Load all from profile
-    settings.update(ProfileManager(config_retriever).retrieve_settings(settings['profile']))
+    settings.update(ProfileManager(config_retriever).retrieve_settings(str(settings['profile'])))
 
     # Then, check for the rest
     for opt, arg in opts:
@@ -2575,7 +2616,8 @@ def _load_settings(argv: List[str], config_retriever: ConfigRetriever) -> Dict:
             print("Pext {}".format(UpdateManager().get_core_version()))
             print()
             print("Copyright (C) 2016 - 2017 Sylvia van Os")
-            print("This is free software; see the source for copying conditions. There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.")
+            print("This is free software; see the source for copying conditions. " +
+                  "There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.")
             print()
             print("Written by Sylvia van Os.")
             sys.exit(0)
@@ -2753,7 +2795,7 @@ def usage() -> None:
   --exit
     Exit upon reaching this argument, useful for module/profile/theme management without starting the Pext GUI.
 
-Report bugs to https://github.com/Pext/Pext.''')
+Report bugs to https://github.com/Pext/Pext.''')  # NOQA
 
 
 def main() -> None:
@@ -2762,7 +2804,12 @@ def main() -> None:
     config_retriever = ConfigRetriever()
 
     # Ensure our necessary directories exist
-    for directory in ['modules', 'module_dependencies', 'themes', os.path.join('themes', ThemeManager.add_prefix(ThemeManager.get_system_theme_name())), 'profiles', 'profiles/default']:
+    for directory in ['modules',
+                      'module_dependencies',
+                      'themes',
+                      os.path.join('themes', ThemeManager.add_prefix(ThemeManager.get_system_theme_name())),
+                      'profiles',
+                      'profiles/default']:
         try:
             os.makedirs(os.path.join(config_retriever.get_setting('config_path'), directory))
         except OSError:
@@ -2773,7 +2820,8 @@ def main() -> None:
 
     # Warn if we may get UI issues
     if warn_no_openGL_linux:
-        print("python3-opengl is not installed. If Pext fails to render, please try installing it. See https://github.com/Pext/Pext/issues/11.")
+        print("python3-opengl is not installed. If Pext fails to render, please try installing it. " +
+              "See https://github.com/Pext/Pext/issues/11.")
 
     # Set up persistence
     pidfile = _init_persist(settings['profile'], settings['background'])
@@ -2785,7 +2833,7 @@ def main() -> None:
     locale_to_use = settings['locale'] if settings['locale'] else QLocale.system().name()
     print('Using locale: {} {}'.format(QLocale(locale_to_use).name(), "(manually set)" if settings['locale'] else ""))
     print('Localization loaded:',
-        translator.load(QLocale(locale_to_use), 'pext', '_', os.path.join(AppFile.get_path(), 'i18n'), '.qm'))
+          translator.load(QLocale(locale_to_use), 'pext', '_', os.path.join(AppFile.get_path(), 'i18n'), '.qm'))
 
     app.installTranslator(translator)
 
@@ -2802,9 +2850,9 @@ def main() -> None:
     if 'style' in settings:
         app.setStyle(QStyleFactory().create(settings['style']))
 
-    if not 'theme' in settings:
+    if 'theme' not in settings:
         settings['theme'] = ProfileManager(config_retriever).retrieve_theme(settings['profile'])
-        
+
     theme_manager = ThemeManager(config_retriever)
     theme = theme_manager.load_theme(settings['theme'])
     theme_manager.apply_theme_to_app(theme, app)

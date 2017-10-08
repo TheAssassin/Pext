@@ -20,19 +20,23 @@
 """Pext wrapper.
 
 This is the Pext wrapper file. It will run Pext and restart it whenever it
-exits with error code 129 (129 is hardcoded to mean a restart request)."""
+exits with error code 129 (129 is hardcoded to mean a restart request).
+"""
 
 import os
 import subprocess
 import sys
 
+
 def main() -> None:
+    """Launch Pext and ensure it restarts if it returns error code 257."""
     while True:
         command = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pext.py")] + sys.argv[1:]
         return_code = subprocess.Popen(command).wait()
         if return_code != 129:
             sys.exit(return_code)
         print("Restarting...")
+
 
 if __name__ == "__main__":
     main()
