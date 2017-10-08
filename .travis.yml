@@ -1,19 +1,14 @@
 language: python
-#sudo: required  # need to install dependencies
 
 python:
-  - "3.3"  # try to find lowest supported version
-  - "3.4"
   - "3.5"
   - "3.6"
-  - "3.7-dev"
 
 install: pip install tox-travis
-script: tox  # disabled to get packaging done
+script: tox
 
 jobs:
   include:
-    - stage: test
     - stage: package
       install:
       script:
@@ -43,3 +38,7 @@ jobs:
       - ./appimagetool-x86_64.AppImage pext.AppDir pext-x86_64.AppImage
       - # upload AppImage to transfer.sh (temporary, shall be replaced by uploadtool eventually)
       - curl --upload-file pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
+
+stages:
+  - test
+  - package
