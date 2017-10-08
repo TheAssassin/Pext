@@ -21,6 +21,7 @@ jobs:
       - git clone https://github.com/libgit2/libgit2
       - pushd libgit2; mkdir build/; cd build
       - cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+      - make install
       - make install DESTDIR=../../pext.AppDir
       - popd
       - pip install PyQt5==5.8 PyOpenGL PyOpenGL_accelerate pygit2
