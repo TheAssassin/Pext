@@ -16,7 +16,7 @@ jobs:
       - echo "deb http://ppa.launchpad.net/djcj/libcurl-slim/ubuntu xenial main" | sudo tee -a sources.list
       - echo "deb http://ppa.launchpad.net/djcj/gnutls-patched/ubuntu trusty main" | sudo tee -a sources.list
       - sudo apt-get update
-      - sudo apt-get install -y --force-yes curl gnutls28
+      - sudo apt-get install -y --force-yes curl
       script:
       - export curdir=$(readlink -f .)
       # install Miniconda, a self contained Python distribution, into AppDir
