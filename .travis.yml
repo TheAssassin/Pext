@@ -47,7 +47,7 @@ jobs:
       - find pext.AppDir -type f -iname '*.tar.bz2' -delete
       - find pext.AppDir -type f -iname '*.a' -delete
       # fix dependency issues, and remove blacklisted libraries
-      - wget https://github.com/AppImage/AppImages/blob/master/functions.sh
+      - wget https://raw.githubusercontent.com/AppImage/AppImages/master/functions.sh
       - . functions.sh
       - pushd pext.AppDir
       - copy_deps; copy_deps; copy_deps
