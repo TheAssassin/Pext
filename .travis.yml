@@ -12,7 +12,7 @@ jobs:
   include:
     - stage: package
       install:
-      - wget https://raw.githubusercontent.com/AppImage/AppImages/master/set-up-ppas.sh | sudo bash -x
+      - wget https://raw.githubusercontent.com/AppImage/AppImages/master/set-up-ppas.sh -O- | sudo bash -x
       script:
       - export curdir=$(readlink -f .)
       # install Miniconda, a self contained Python distribution, into AppDir
