@@ -12,22 +12,7 @@ jobs:
   include:
     - stage: package
       install:
-      # https://github.com/AppImage/AppImages/issues/187
-      - echo "deb http://ppa.launchpad.net/djcj/libcurl-slim/ubuntu xenial main" | sudo tee -a /etc/apt/sources.list
-      - echo "deb http://ppa.launchpad.net/djcj/gnutls-patched/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list
-      # pin packages to make sure they will be installed whatever version is available from the system
-      - cat > /etc/apt/preferences.d/djcj-pin <<EAT
-      - Package: *
-      - Pin: release o=LP-PPA-djcj-libcurl-slim
-      - Pin-Priority: 9999
-      -
-      - Package: *
-      - Pin: release o=LP-PPA-djcj-gnutls-patched
-      - Pin-Priority: 9999
-      - EAT
-      - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4BC359BE72CD1721449C8CC24A5F4FED4B4972B
-      - sudo apt-get update
-      - sudo apt-get install -y --force-yes  curl
+      - wget https://raw.githubusercontent.com/AppImage/AppImages/master/set-up-ppas.sh | sudo bash -x
       script:
       - export curdir=$(readlink -f .)
       # install Miniconda, a self contained Python distribution, into AppDir
