@@ -13,7 +13,7 @@ jobs:
     - stage: package
       install:
       - wget https://raw.githubusercontent.com/AppImage/AppImages/master/set-up-ppas.sh -O- | sudo bash -x
-      - sudo apt upgrade -y --force-yes
+      - sudo apt install -y --force-yes curl libcurl3 libcurl-gnutls3 libcurl-nss3
       script:
       - export curdir=$(readlink -f .)
       # install Miniconda, a self contained Python distribution, into AppDir
