@@ -62,7 +62,7 @@ jobs:
       - squashfs-root/AppRun -u "gh-releases-zsync|Pext|Pext|latest|pext-x86_64.AppImage" pext.AppDir pext-x86_64.AppImage
       # upload AppImage to transfer.sh (temporary, shall be replaced by uploadtool eventually)
       - du -sh -BM pext-x86_64.AppImage
-      - curl --upload-file pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
+      - wget -O- -nv --method PUT --body-file=pext-x86_64.AppImage https://transfer.sh/pext-x86_64.AppImage
 
 stages:
   - test
