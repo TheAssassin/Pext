@@ -13,7 +13,7 @@ jobs:
     - stage: package
       install:
       - wget https://raw.githubusercontent.com/AppImage/AppImages/master/set-up-ppas.sh -O- | sudo bash -x
-      - sudo apt install -y --force-yes curl
+      - sudo apt upgrade -y --force-yes
       script:
       - export curdir=$(readlink -f .)
       # install Miniconda, a self contained Python distribution, into AppDir
@@ -52,6 +52,7 @@ jobs:
       - . functions.sh
       - pushd pext.AppDir
       - copy_deps; copy_deps; copy_deps
+      - move_lib
       - delete_blacklisted
       - popd
       # build AppImage
