@@ -11,7 +11,13 @@ jobs:
   include:
     - stage: package
       install:
+      # https://github.com/AppImage/AppImages/issues/187
+      - echo "deb http://ppa.launchpad.net/djcj/libcurl-slim/ubuntu xenial main" >> sources.list
+      - echo "deb http://ppa.launchpad.net/djcj/gnutls-patched/ubuntu trusty main" >> sources.list
+      - apt-get update
+      - apt-get install -y --force-install curl gnutls28
       script:
+      - export curdir=$(readlink -f .)
       # install Miniconda, a self contained Python distribution, into AppDir
       - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
       - bash Miniconda3-latest-Linux-x86_64.sh -b -p pext.AppDir/usr -f
@@ -21,10 +27,9 @@ jobs:
       - git clone https://github.com/libgit2/libgit2
       - pushd libgit2; mkdir build/; cd build
       - cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-      - make install DESTDIR=../../pext.AppDir -j$(nproc)
+      - make install DESTDIR="${curdir}"/pext.AppDir -j$(nproc)
       - popd
       - pip install PyQt5==5.8 PyOpenGL PyOpenGL_accelerate
-      - export curdir=$(readlink -f .)
       - pip install -U pip
       - pip download pygit2; tar xf pygit2*.tar.gz; pushd pygit2*/
       - python setup.py build_ext --inplace --include-dirs="${curdir}/pext.AppDir/usr/include" --library-dirs="${curdir}/pext.AppDir/usr/lib"
@@ -44,6 +49,13 @@ jobs:
       # clean up unused garbage
       - find pext.AppDir -type f -iname '*.tar.bz2' -delete
       - find pext.AppDir -type f -iname '*.a' -delete
+      # fix dependency issues, and remove blacklisted libraries
+      - wget https://github.com/AppImage/AppImages/blob/master/functions.sh
+      - . functions.sh
+      - pushd pext.AppDir
+      - copy_deps; copy_deps; copy_deps
+      - delete_blacklisted
+      - popd
       # build AppImage
       - wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
       - chmod +x appimagetool-x86_64.AppImage
