@@ -56,7 +56,7 @@ sed -i 's|Exec=.*|Exec=usr/bin/python usr/bin/pext|' AppDir/pext.desktop
 
 # precompile bytecode to speed up startup
 pushd AppDir
-python -m compileall . -f
+python -m compileall . -fqb || true
 popd
 
 # copy in libraries
